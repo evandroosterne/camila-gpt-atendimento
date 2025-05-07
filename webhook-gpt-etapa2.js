@@ -9,14 +9,19 @@ const { OpenAI } = require("openai");
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const openai = new OpenAI({
-  apiKey: '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',
-});
-
 const ULTRAMSG_URL = process.env.ULTRAMSG_URL;
 const TOKEN = process.env.ULTRAMSG_TOKEN;
 const TELEFONE_CLINICA = process.env.TEL_CLINICA;
 const TELEFONE_EVANDRO = process.env.TEL_EVANDRO;
+
+if (!ULTRAMSG_URL || !TOKEN || !TELEFONE_CLINICA || !TELEFONE_EVANDRO) {
+  console.error("❌ Variáveis de ambiente faltando.");
+  process.exit(1);
+}
+
+const openai = new OpenAI({
+  apiKey: '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',
+});
 
 const estadoPacientes = {};
 
@@ -44,16 +49,19 @@ app.post("/webhook", async (req, res) => {
 
   if (!paciente.nomeConfirmado) {
     const pareceNome = /^[a-zA-Zà-úÀ-ÚçÇ ]{4,}$/.test(msg);
-    const desviou = msgLower.includes("implante") || msgLower.includes("clareamento") || msgLower.includes("quero");
 
     if (!paciente.aguardandoNome) {
       paciente.aguardandoNome = true;
       paciente.tentativaNome = 1;
-      await axios.post(`${ULTRAMSG_URL}messages/chat`, {
-        token: TOKEN,
-        to: numero,
-        body: `👋 Oi! Só pra gente continuar direitinho, qual é o seu nome completo? 😊`,
-      });
+      try {
+        await axios.post(`${ULTRAMSG_URL}messages/chat`, {
+          token: TOKEN,
+          to: numero,
+          body: `👋 Oi! Só pra gente continuar direitinho, qual é o seu nome completo? 😊`,
+        });
+      } catch (e) {
+        console.error("❌ Erro ao solicitar nome:", e.message);
+      }
       return res.sendStatus(200);
     }
 
@@ -63,18 +71,18 @@ app.post("/webhook", async (req, res) => {
       paciente.aguardandoNome = false;
     } else {
       paciente.tentativaNome += 1;
-      if (paciente.tentativaNome <= 2) {
+      const body =
+        paciente.tentativaNome <= 2
+          ? `😊 Claro, ${senderName}! Antes de continuar, me diz seu nome completo?`
+          : `🙏 Ainda preciso do seu nome completo, ${senderName}, pra poder te ajudar melhor.`;
+      try {
         await axios.post(`${ULTRAMSG_URL}messages/chat`, {
           token: TOKEN,
           to: numero,
-          body: `😊 Claro, ${senderName}! Antes de te responder direitinho, me diz só seu nome completo?`,
+          body,
         });
-      } else {
-        await axios.post(`${ULTRAMSG_URL}messages/chat`, {
-          token: TOKEN,
-          to: numero,
-          body: `🙏 Só consigo te ajudar melhor se eu souber seu nome completo, ${senderName}. Pode me dizer?`,
-        });
+      } catch (e) {
+        console.error("❌ Erro ao reenviar solicitação de nome:", e.message);
       }
       return res.sendStatus(200);
     }
@@ -88,13 +96,17 @@ app.post("/webhook", async (req, res) => {
 Nome: ${paciente.nome}
 Telefone: ${numero}
 Mensagem: "${msg}"`;
-    await axios.post(`${ULTRAMSG_URL}messages/chat`, { token: TOKEN, to: TELEFONE_CLINICA, body: alerta });
-    await axios.post(`${ULTRAMSG_URL}messages/chat`, { token: TOKEN, to: TELEFONE_EVANDRO, body: alerta });
-    await axios.post(`${ULTRAMSG_URL}messages/chat`, {
-      token: TOKEN,
-      to: numero,
-      body: `💡 Obrigado, ${paciente.nome}! Já avisei a equipe. Vamos cuidar de você rapidinho!`,
-    });
+    try {
+      await axios.post(`${ULTRAMSG_URL}messages/chat`, { token: TOKEN, to: TELEFONE_CLINICA, body: alerta });
+      await axios.post(`${ULTRAMSG_URL}messages/chat`, { token: TOKEN, to: TELEFONE_EVANDRO, body: alerta });
+      await axios.post(`${ULTRAMSG_URL}messages/chat`, {
+        token: TOKEN,
+        to: numero,
+        body: `💡 Obrigado, ${paciente.nome}! Já avisei a equipe. Vamos cuidar de você rapidinho!`,
+      });
+    } catch (e) {
+      console.error("❌ Erro ao enviar alerta de dor:", e.message);
+    }
     return res.sendStatus(200);
   }
 
@@ -121,19 +133,27 @@ Mensagem: "${msg}"`;
       resposta += `
 
 📞 Vou te passar pra um atendente agora, tudo bem?`;
-      await axios.post(`${ULTRAMSG_URL}messages/chat`, {
-        token: TOKEN,
-        to: TELEFONE_CLINICA,
-        body: `📲 ${paciente.nome} (${numero}) quer atendimento humano.
+      try {
+        await axios.post(`${ULTRAMSG_URL}messages/chat`, {
+          token: TOKEN,
+          to: TELEFONE_CLINICA,
+          body: `📲 ${paciente.nome} (${numero}) quer atendimento humano.
 Mensagem: "${msg}"`,
-      });
+        });
+      } catch (e) {
+        console.error("❌ Erro ao notificar atendente:", e.message);
+      }
     }
 
-    await axios.post(`${ULTRAMSG_URL}messages/chat`, {
-      token: TOKEN,
-      to: numero,
-      body: resposta,
-    });
+    try {
+      await axios.post(`${ULTRAMSG_URL}messages/chat`, {
+        token: TOKEN,
+        to: numero,
+        body: resposta,
+      });
+    } catch (e) {
+      console.error("❌ Erro ao responder paciente:", e.message);
+    }
 
     const csv = `${new Date().toISOString()},${paciente.nome},${numero},"${msg}","${resposta.replace(/"/g, "'")}"
 `;
@@ -141,7 +161,16 @@ Mensagem: "${msg}"`,
 
     res.sendStatus(200);
   } catch (erro) {
-    console.error("❌ Erro:", erro.response?.data || erro.message);
+    console.error("❌ Erro GPT:", erro.response?.data || erro.message);
+    try {
+      await axios.post(`${ULTRAMSG_URL}messages/chat`, {
+        token: TOKEN,
+        to: numero,
+        body: "😓 Opa, tive um probleminha agora. Tenta me perguntar de novo em instantes, por favor?",
+      });
+    } catch (e) {
+      console.error("❌ Falha ao enviar mensagem de erro ao paciente:", e.message);
+    }
     res.sendStatus(500);
   }
 });
