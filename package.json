@@ -1,12 +1,19 @@
 {
   "name": "atendimento-chat-virtual",
   "version": "1.0.0",
-  "main": "webhook-gpt-etapa2.js",
+ "main": "webhook-gpt-etapa2.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "axios": "^1.9.0",
+    "body-parser": "^2.2.0",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "openai": "^4.97.0"
+  }
 }
