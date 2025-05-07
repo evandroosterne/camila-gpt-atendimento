@@ -7,7 +7,7 @@ const axios = require("axios");
 const { OpenAI } = require("openai");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8080;
 
 const openai = new OpenAI({
   apiKey: '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',
